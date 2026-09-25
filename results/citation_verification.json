@@ -1,0 +1,261 @@
+{
+  "summary": {
+    "total": 31,
+    "verified": 31,
+    "suspicious": 0,
+    "hallucinated": 0,
+    "skipped": 0,
+    "integrity_score": 1.0
+  },
+  "results": [
+    {
+      "cite_key": "abdar2021review",
+      "title": "A review of uncertainty quantification in deep learning: Techniques, applications and challenges",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'A review of uncertainty quantification in deep learning: Techniques, applications and challenges'"
+    },
+    {
+      "cite_key": "siddique2021unet",
+      "title": "U-Net and Its Variants for Medical Image Segmentation: A Review of Theory and Applications",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'U-Net and Its Variants for Medical Image Segmentation: A Review of Theory and Applications'"
+    },
+    {
+      "cite_key": "gawlikowski2023survey",
+      "title": "A survey of uncertainty in deep neural networks",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'A survey of uncertainty in deep neural networks'"
+    },
+    {
+      "cite_key": "alzubaidi2023survey",
+      "title": "A survey on deep learning tools dealing with data scarcity: definitions, challenges, solutions, tips, and applications",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'A survey on deep learning tools dealing with data scarcity: definitions, challenges, solutions, tips, and applications'"
+    },
+    {
+      "cite_key": "wang2022medical",
+      "title": "Medical image segmentation using deep learning: A survey",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Medical image segmentation using deep learning: A survey'"
+    },
+    {
+      "cite_key": "muller2022guideline",
+      "title": "Towards a guideline for evaluation metrics in medical image segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Towards a guideline for evaluation metrics in medical image segmentation'"
+    },
+    {
+      "cite_key": "weng2021inet",
+      "title": "INet: Convolutional Networks for Biomedical Image Segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'INet: Convolutional Networks for Biomedical Image Segmentation'"
+    },
+    {
+      "cite_key": "maierhein2024metrics",
+      "title": "Metrics reloaded: recommendations for image analysis validation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Metrics reloaded: recommendations for image analysis validation'"
+    },
+    {
+      "cite_key": "haque2020deep",
+      "title": "Deep learning approaches to biomedical image segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Deep learning approaches to biomedical image segmentation'"
+    },
+    {
+      "cite_key": "mehrtash2020confidence",
+      "title": "Confidence Calibration and Predictive Uncertainty Estimation for Deep Medical Image Segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Confidence Calibration and Predictive Uncertainty Estimation for Deep Medical Image Segmentation'"
+    },
+    {
+      "cite_key": "cassidy2021analysis",
+      "title": "Analysis of the ISIC image datasets: Usage, benchmarks and recommendations",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Analysis of the ISIC image datasets: Usage, benchmarks and recommendations'"
+    },
+    {
+      "cite_key": "punn2022modality",
+      "title": "Modality specific U-Net variants for biomedical image segmentation: a survey",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Modality specific U-Net variants for biomedical image segmentation: a survey'"
+    },
+    {
+      "cite_key": "lambert2024trustworthy",
+      "title": "Trustworthy clinical AI solutions: A unified review of uncertainty quantification in Deep Learning models for medical image analysis",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Trustworthy clinical AI solutions: A unified review of uncertainty quantification in Deep Learning models for medical image analysis'"
+    },
+    {
+      "cite_key": "wen2021characteristics",
+      "title": "Characteristics of publicly available skin cancer image datasets: a systematic review",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Characteristics of publicly available skin cancer image datasets: a systematic review'"
+    },
+    {
+      "cite_key": "tong2021ascunet",
+      "title": "ASCU-Net: Attention Gate, Spatial and Channel Attention U-Net for Skin Lesion Segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'ASCU-Net: Attention Gate, Spatial and Channel Attention U-Net for Skin Lesion Segmentation'"
+    },
+    {
+      "cite_key": "huang2024review",
+      "title": "A review of uncertainty quantification in medical image analysis: Probabilistic and non-probabilistic methods",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'A review of uncertainty quantification in medical image analysis: Probabilistic and non-probabilistic methods'"
+    },
+    {
+      "cite_key": "jurdi2021highlevel",
+      "title": "High-level prior-based loss functions for medical image segmentation: A survey",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'High-level prior-based loss functions for medical image segmentation: A survey'"
+    },
+    {
+      "cite_key": "azad2022medical",
+      "title": "Medical Image Segmentation Review: The success of U-Net",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via DataCite: 'Medical Image Segmentation Review: The success of U-Net'"
+    },
+    {
+      "cite_key": "peng2021medical",
+      "title": "Medical Image Segmentation With Limited Supervision: A Review of Deep Network Models",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Medical Image Segmentation With Limited Supervision: A Review of Deep Network Models'"
+    },
+    {
+      "cite_key": "liu2021skin",
+      "title": "Skin Lesion Segmentation Using Deep Learning with Auxiliary Task",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Skin Lesion Segmentation Using Deep Learning with Auxiliary Task'"
+    },
+    {
+      "cite_key": "hosny2023deep",
+      "title": "Deep Learning and Optimization-Based Methods for Skin Lesions Segmentation: A Review",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Deep Learning and Optimization-Based Methods for Skin Lesions Segmentation: A Review'"
+    },
+    {
+      "cite_key": "karimi2022improving",
+      "title": "Improving Calibration and Out-of-Distribution Detection in Deep Models for Medical Image Segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Improving Calibration and Out-of-Distribution Detection in Deep Models for Medical Image Segmentation'"
+    },
+    {
+      "cite_key": "ashraf2022melanoma",
+      "title": "Melanoma segmentation using deep learning with test-time augmentations and conditional random fields",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Melanoma segmentation using deep learning with test-time augmentations and conditional random fields'"
+    },
+    {
+      "cite_key": "jiang2020skin",
+      "title": "Skin Lesion Segmentation Based on Multi-Scale Attention Convolutional Neural Network",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Skin Lesion Segmentation Based on Multi-Scale Attention Convolutional Neural Network'"
+    },
+    {
+      "cite_key": "tong2024livitnet",
+      "title": "LiViT-Net: A U-Net-like, lightweight Transformer network for retinal vessel segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'LiViT-Net: A U-Net-like, lightweight Transformer network for retinal vessel segmentation'"
+    },
+    {
+      "cite_key": "karimi2023deunet",
+      "title": "DEU-Net: Dual-Encoder U-Net for Automated Skin Lesion Segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'DEU-Net: Dual-Encoder U-Net for Automated Skin Lesion Segmentation'"
+    },
+    {
+      "cite_key": "pennisi2022skin",
+      "title": "Skin Lesion Area Segmentation Using Attention Squeeze U-Net for Embedded Devices",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Skin Lesion Area Segmentation Using Attention Squeeze U-Net for Embedded Devices'"
+    },
+    {
+      "cite_key": "le2023antialiasing",
+      "title": "Anti-Aliasing Attention U-net Model for Skin Lesion Segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Anti-Aliasing Attention U-net Model for Skin Lesion Segmentation'"
+    },
+    {
+      "cite_key": "wu2024uncertaintyaware",
+      "title": "Uncertainty-aware representation calibration for semi-supervised medical imaging segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Uncertainty-aware representation calibration for semi-supervised medical imaging segmentation'"
+    },
+    {
+      "cite_key": "nie2024elanet",
+      "title": "ELA-Net: An Efficient Lightweight Attention Network for Skin Lesion Segmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'ELA-Net: An Efficient Lightweight Attention Network for Skin Lesion Segmentation'"
+    },
+    {
+      "cite_key": "ahamed2024optimizing",
+      "title": "Optimizing Skin Lesion Segmentation with UNet and Attention-Guidance Utilizing Test Time Augmentation",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Optimizing Skin Lesion Segmentation with UNet and Attention-Guidance Utilizing Test Time Augmentation'",
+      "relevance_score": 0.99
+    }
+  ]
+}
