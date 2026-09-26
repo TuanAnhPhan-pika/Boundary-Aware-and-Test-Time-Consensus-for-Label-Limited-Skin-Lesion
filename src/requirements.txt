@@ -3,6 +3,7 @@ pandas
 Pillow
 scipy
 scikit-learn
+matplotlib
 torch
 torchvision
 datasets

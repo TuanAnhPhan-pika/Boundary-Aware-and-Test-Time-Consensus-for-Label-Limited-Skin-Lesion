@@ -1,77 +1,73 @@
 # Boundary-Aware and Test-Time Consensus for Label-Limited Skin-Lesion Segmentation
 
-This repository contains the research paper, experiment code, recorded results,
-and figures for a small CPU pilot on ISIC 2016 skin-lesion segmentation.
+Reproducible research package for a five-seed ISIC 2016 segmentation study. It contains the executed code, full per-seed outputs, derived tables, figures, and English/Vietnamese papers.
 
-The study compares a compact U-Net baseline with boundary-weighted training,
-uncertainty-weighted boundary training, mean-probability test-time augmentation,
-robust-logit test-time consensus, and a wider single-pass U-Net.
+## Main result
 
-## Main finding
+All 105 prespecified evaluations completed (3 label budgets × 5 seeds × 7 conditions). Four-view TTA improved compact U-Net Dice by about 0.003–0.006. A modestly wider single-view U-Net was best at every budget. The tested uniform and transformation-sensitivity-gated boundary losses did not improve Dice.
 
-In the executed two-epoch pilot, none of the tested changes showed a reliable
-improvement over the compact U-Net baseline. Robust-logit TTA increased mean
-Dice by approximately 0.004, while the boundary-loss variants produced almost
-no change. These results are exploratory and do not establish clinical utility.
+| Method | 25% labels | 50% labels | 100% labels |
+|---|---:|---:|---:|
+| Compact U-Net | 0.8444 | 0.8688 | 0.8907 |
+| Robust-logit TTA | 0.8500 | 0.8726 | 0.8939 |
+| Wider U-Net | **0.8555** | **0.8785** | **0.8971** |
 
-## Repository structure
+Values are mean per-image Dice across five paired seeds on 379 test images. They measure agreement with reference masks, not diagnostic performance or clinical utility.
 
-- `paper/paper_english.md`: corrected English report.
-- `paper/paper_vietnamese.md`: Vietnamese report.
-- `paper/references.bib`: bibliography.
-- `src/`: experiment implementation.
-- `scripts/prepare_isic2016_subset.py`: deterministic data preparation.
-- `results/experiment_results.json`: per-condition and per-seed outputs.
-- `results/citation_verification.json`: citation verification record.
-- `figures/`: generated result plots.
+![Dice across label budgets](figures/dice_by_label_budget.png)
 
-The AutoResearchClaw framework, its internal stages, local virtual environment,
-caches, and downloaded image data are intentionally excluded.
+## Executed protocol
 
-## Experiment scope
+- Data source: `MedOtter/ISIC2016` mirror.
+- Final split after exact-duplicate filtering: 716 development / 180 validation / 379 test images.
+- Training budgets: 179 / 358 / 716 images.
+- Resolution: 256 × 256.
+- Five paired seeds and up to 60 epochs.
+- GPU run: NVIDIA RTX 4050 Laptop GPU, PyTorch 2.13.0+cu130.
+- Total measured experiment time: 9.73 hours.
 
-- Prepared data: 140 train, 40 validation, and 60 test image-mask pairs.
-- Executed pilot: 80-image development pool, 20 validation images, and
-  30 test images.
-- Training subsets: 20 images (25%) and 40 images (50%).
-- Input size: 64 x 64 pixels.
-- Training: 2 epochs, 3 paired seeds, CPU.
+## Repository layout
 
-## Setup
+- `paper/paper_english.md` — full English paper.
+- `paper/paper_vietnamese.md` — Vietnamese paper in accessible technical language.
+- `paper/references.bib` — bibliography with DOI links.
+- `src/` — exact experiment implementation.
+- `scripts/prepare_isic2016_full.py` — deterministic data preparation.
+- `scripts/generate_analysis.py` — regenerates tables and figures.
+- `results/experiment_results.json` — authoritative full output.
+- `results/per_seed_metrics.csv` — tidy per-seed metrics.
+- `results/summary_metrics.csv` — aggregate metrics.
+- `results/paired_dice_comparisons.csv` — paired effect analysis.
+- `figures/` — publication figures generated from the JSON output.
 
-Python 3.11 is recommended.
+Image data, virtual environments, caches, system files, model caches, and AutoResearchClaw are intentionally excluded.
+
+## Reproduce
+
+Python 3.11 is recommended. Install dependencies:
 
 ```bash
 python -m venv .venv
-```
-
-On Windows:
-
-```powershell
-.venv\Scripts\Activate.ps1
 pip install -r src/requirements.txt
-python scripts/prepare_isic2016_subset.py
-python src/main.py
 ```
 
-On Linux or macOS:
+Prepare data from the upstream mirror:
 
 ```bash
-source .venv/bin/activate
-pip install -r src/requirements.txt
-python scripts/prepare_isic2016_subset.py
-python src/main.py
+python scripts/prepare_isic2016_full.py
 ```
 
-The preparation script downloads a small subset of `MedOtter/ISIC2016` through
-the Hugging Face `datasets` package. Review the upstream dataset terms before
-redistributing any images. Dataset files are excluded from this repository.
+Run from the `src` directory so the local modules resolve:
 
-## Important limitations
+```bash
+cd src
+python main.py
+cd ..
+python scripts/generate_analysis.py
+```
 
-This is a resource-limited pilot, not a full benchmark evaluation. The images
-were resized to 64 x 64, training lasted only two epochs, and each condition
-used three seeds. The reported outputs concern mask overlap on the selected
-subset and must not be interpreted as evidence of diagnostic accuracy, safety,
-or clinical readiness.
+The experiment expects a CUDA-capable PyTorch build for the recorded configuration. Review the upstream dataset terms before downloading or redistributing images.
 
+## Scope and limitations
+
+This is an internal benchmark study on one dataset. Patient-level separation could not be verified from the available metadata, no external cohort was evaluated, and five seeds do not provide a powered confirmatory significance test. See the papers for full methods and limitations.

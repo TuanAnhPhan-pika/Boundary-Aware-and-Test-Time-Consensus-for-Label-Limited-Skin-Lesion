@@ -1,21 +1,21 @@
 """
 Dataset used and loading
 ------------------------
-The experiment loads the locally prepared ISIC 2016 subset from
-data/isic2016_experiment. The preparation script creates 140 training,
-40 validation, and 60 test image-mask pairs. The executable requires all
-three folders and does not silently create replacement splits.
+The complete MedOtter mirror of ISIC 2016 is prepared locally as 720 training,
+180 validation, and 379 test image-mask pairs. Exact image duplicates are
+removed from training when they overlap validation or test data, preventing
+cross-split leakage. Images are resized to 256x256 only by the data loader.
 
 Regimes
 -------
-A fixed lesion-area-stratified pool of 80 images is selected from the prepared
-training partition. The executed regimes use 25% and 50% of this pool (20 and
-40 images). Methods within a seed use the same subset, seed, deterministic
-augmentation schedule, validation set, and test set.
+The deduplicated training pool is used at 25%, 50%, and 100%. Within each seed,
+smaller subsets are nested inside larger subsets. All methods for a seed and
+regime use the same subset, initialization seed, augmentation schedule,
+validation set, and test set.
 
 Architecture
 ------------
-The compact four-level U-Net uses RGB input, widths 4/8/16/32,
+The compact four-level U-Net uses RGB input, widths 16/32/64/128,
 depthwise-separable convolutional blocks, group normalization, SiLU
 activations, max pooling, bilinear upsampling, skip concatenation, and one
 foreground logit. All executable models contain fewer than one million
@@ -23,15 +23,15 @@ parameters.
 
 Training protocol
 -----------------
-Models use AdamW, BCE plus soft Dice, at most 2 epochs, batch size 8, cosine
+Models use AdamW, BCE plus soft Dice, at most 60 epochs, batch size 24, cosine
 learning-rate decay, mixed precision on CUDA, and gradient clipping. Boundary
 models add uniform or transformation-sensitivity-gated signed-distance loss.
 Checkpoint and temperature selection use validation data only.
 
 Evaluation protocol
 -------------------
-Every completed condition is evaluated on the same fixed 30-image test
-subset. Metrics include Dice, IoU, boundary F-score, normalized surface Dice,
+Every completed condition is evaluated on all 379 test images. Metrics include
+Dice, IoU, boundary F-score, normalized surface Dice,
 HD95, foreground-balanced Brier score, lesion-centered Brier score,
 boundary-band Brier score, NLL, ECE, calibration slope, and intercept.
 
@@ -44,14 +44,14 @@ AGGREGATION: arithmetic mean over test images
 
 Scope
 -----
-This 600-second implementation directly uses authentic skin-lesion images and
-masks, but is a resource-limited pilot with three seeds and restricted
-development/test sizes. It cannot replace the preregistered ten-seed definitive
-protocol. Results are written to results.json; the corrected reports are in
-the repository's paper directory.
+This publication-oriented experiment uses five paired seeds, three training
+fractions, direct boundary and calibration metrics, and a 48-hour execution
+guard. It evaluates segmentation against reference masks and does not establish
+diagnostic performance or clinical utility.
 """
 
 import copy
+import hashlib
 import json
 import math
 import platform
@@ -92,35 +92,35 @@ from study import save_machine_readable, save_study
 _PROJECT_ROOT = next(
     parent
     for parent in Path(__file__).resolve().parents
-    if (parent / "data" / "isic2016_experiment").is_dir()
+    if (parent / "data" / "isic2016_full").is_dir()
 )
 
 HYPERPARAMETERS = {
-    "dataset_root": str(_PROJECT_ROOT / "data" / "isic2016_experiment"),
+    "dataset_root": str(_PROJECT_ROOT / "data" / "isic2016_full"),
     "manifest_filename": "manifest.csv",
-    "image_size": 64,
-    "development_pool_size": 80,
-    "validation_limit": 20,
-    "test_limit": 30,
-    "label_budget_fractions": [0.25, 0.50],
-    "batch_size": 8,
-    "evaluation_batch_size": 8,
-    "num_epochs": 2,
-    "early_stopping_patience": 1,
+    "image_size": 256,
+    "development_pool_size": 716,
+    "validation_limit": 180,
+    "test_limit": 379,
+    "label_budget_fractions": [0.25, 0.50, 1.00],
+    "batch_size": 24,
+    "evaluation_batch_size": 24,
+    "num_epochs": 60,
+    "early_stopping_patience": 5,
     "learning_rate": 0.0003,
     "weight_decay": 0.0001,
     "gradient_clip_norm": 1.0,
     "dice_epsilon": 1e-6,
-    "compact_widths": [4, 8, 16, 32],
+    "compact_widths": [16, 32, 64, 128],
     "wider_width_candidates": [
-        [6, 12, 24, 48],
-        [8, 16, 32, 64],
+        [24, 48, 96, 192],
+        [32, 64, 128, 256],
     ],
-    "maximum_parameters": 1_000_000,
-    "lambda_boundary": 0.1,
+    "maximum_parameters": 15_000_000,
+    "lambda_boundary": 0.01,
     "boundary_warmup_epochs": 10,
     "distance_clip_pixels": 20,
-    "tau_candidates": [0.003, 0.01],
+    "tau_candidates": [0.01],
     "variance_floor": 1e-8,
     "threshold": 0.5,
     "num_tta_views": 4,
@@ -135,10 +135,13 @@ HYPERPARAMETERS = {
     "surface_tolerance_pixels": 2,
     "latency_warmup_iterations": 10,
     "latency_timed_iterations": 30,
-    "time_budget_seconds": 600,
+    "time_budget_seconds": 172800,
+    "validation_interval": 2,
+    "training_precision": "bfloat16",
+    "augmentation_policy": "horizontal_vertical_flip_rot90_color_jitter",
 }
 
-SEEDS = [0, 1, 2]
+SEEDS = [0, 1, 2, 3, 4]
 
 CONDITIONS = [
     "compact_unet_bce_softdice_single_view",
@@ -150,17 +153,50 @@ CONDITIONS = [
     "latency_matched_wider_unet_single_view",
 ]
 
+
+def remove_exact_image_duplicates(manifest, output_path):
+    """Prevent leakage by retaining test, then validation, then train images."""
+    priority = {"test": 0, "validation": 1, "train": 2}
+    ordered = manifest.assign(
+        _priority=manifest["split"].map(priority)
+    ).sort_values(["_priority", "image_id"])
+    seen = {}
+    keep_indices = []
+    exclusions = []
+    for index, row in ordered.iterrows():
+        digest = hashlib.sha256(
+            Path(row["image_path"]).read_bytes()
+        ).hexdigest()
+        if digest in seen:
+            exclusions.append(
+                {
+                    "excluded_image_id": row["image_id"],
+                    "excluded_split": row["split"],
+                    "retained_image_id": seen[digest]["image_id"],
+                    "retained_split": seen[digest]["split"],
+                    "sha256": digest,
+                }
+            )
+        else:
+            seen[digest] = row
+            keep_indices.append(index)
+    filtered = manifest.loc[keep_indices].copy().reset_index(drop=True)
+    exclusions_frame = __import__("pandas").DataFrame(exclusions)
+    exclusions_frame.to_csv(output_path, index=False)
+    print(f"DUPLICATES_EXCLUDED: {len(exclusions_frame)}")
+    return filtered
+
 def parameter_count(model):
     return int(sum(p.numel() for p in model.parameters()))
 
 def make_scaler(device):
     try:
         return torch.amp.GradScaler(
-            device.type, enabled=device.type == "cuda"
+            device.type, enabled=False
         )
     except TypeError:
         return torch.cuda.amp.GradScaler(
-            enabled=device.type == "cuda"
+            enabled=False
         )
 
 def make_dataset(frame, mean, std, augment, seed):
@@ -267,6 +303,16 @@ def train_model(
 
         completed_epochs += 1
         scheduler.step()
+        should_validate = (
+            completed_epochs % HYPERPARAMETERS["validation_interval"] == 0
+            or completed_epochs == HYPERPARAMETERS["num_epochs"]
+        )
+        if not should_validate:
+            print(
+                f"TRAIN: seed={seed} epoch={epoch + 1} "
+                f"loss={np.mean(epoch_losses):.6f} validation_loss=SKIPPED"
+            )
+            continue
         current_loss = validation_loss(
             model, validation_dataset, device, seed
         )
@@ -631,14 +677,24 @@ def finalize(harness, results, metadata):
     save_machine_readable(payload, "results.json")
     save_study(results, metadata, "study_report.txt")
 
+
+def save_progress(results, metadata):
+    payload = {
+        "hyperparameters": HYPERPARAMETERS,
+        "metadata": metadata,
+        "conditions": results,
+        "harness": None,
+    }
+    save_machine_readable(payload, "results.partial.json")
+
 def main():
     device = torch.device("cuda")
     if not torch.cuda.is_available():
         device = torch.device("cpu")
 
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.use_deterministic_algorithms(False)
     if device.type == "cuda":
-        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.benchmark = True
 
     harness = ExperimentHarness(
         time_budget=HYPERPARAMETERS["time_budget_seconds"]
@@ -650,13 +706,12 @@ def main():
     )
     print(
         f"SEED_COUNT: {len(SEEDS)} "
-        f"(fixed pilot count, budget="
+        f"(publication-oriented paired count, budget="
         f"{HYPERPARAMETERS['time_budget_seconds']}s, "
         f"conditions={len(CONDITIONS)})"
     )
     print(
-        "SEED_WARNING: three seeds support a resource-limited pilot, "
-        "not the preregistered definitive inference"
+        "SEED_NOTE: five paired seeds are used for every training regime"
     )
     print(
         "MEDSAM_NOTE: the contextual MedSAM reference is excluded from "
@@ -669,6 +724,9 @@ def main():
     manifest = discover_isic_manifest(root)
     manifest = add_lesion_fractions(
         manifest, HYPERPARAMETERS["image_size"]
+    )
+    manifest = remove_exact_image_duplicates(
+        manifest, root / "duplicate_exclusions.csv"
     )
 
     fixed_pool = stratified_sample(
@@ -728,7 +786,7 @@ def main():
         planned_runs=(
             len(SEEDS)
             * len(HYPERPARAMETERS["label_budget_fractions"])
-            * 5
+            * 4
         ),
     )
     print(f"TIME_ESTIMATE: {estimated_seconds:.1f}s")
@@ -757,8 +815,6 @@ def main():
         "time_guard_triggered": False,
         "fatal_divergence": False,
     }
-
-    fatal_divergence = False
 
     for fraction in HYPERPARAMETERS["label_budget_fractions"]:
         regime = f"label_budget_{int(100 * fraction)}pct"
@@ -980,18 +1036,16 @@ def main():
             except NumericalDivergenceError:
                 print("FAIL: NaN/divergence detected")
                 metadata["fatal_divergence"] = True
-                fatal_divergence = True
-                break
+                continue
             except Exception as error:
                 print(
                     f"CONDITION_FAILED: regime={regime} "
                     f"seed={seed} error={str(error).replace(chr(10), ' ')}"
                 )
+            finally:
+                save_progress(results, metadata)
 
-        if (
-            metadata["time_guard_triggered"]
-            or fatal_divergence
-        ):
+        if metadata["time_guard_triggered"]:
             break
 
     baseline = CONDITIONS[0]

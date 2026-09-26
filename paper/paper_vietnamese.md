@@ -1,88 +1,97 @@
-# LENS: Thử nghiệm phân đoạn tổn thương da trên CPU với loss vùng biên và TTA trong điều kiện thiếu dữ liệu được gán nhãn
+# Loss vùng biên hay gộp nhiều dự đoán? Nghiên cứu phân đoạn tổn thương da ISIC 2016 với năm seed
 
 ## Tóm tắt
 
-Nghiên cứu thử nghiệm ban đầu này đánh giá các cách phân đoạn tổn thương da bằng mô hình nhẹ khi số lượng ảnh đã được gán nhãn còn hạn chế. Chúng tôi lấy U-Net gọn nhẹ, huấn luyện bằng binary cross-entropy kết hợp soft Dice, làm mô hình cơ sở. Sáu phương án khác được đem ra so sánh gồm: thêm trọng số cho vùng biên dựa trên khoảng cách; thêm trọng số biên dựa trên mức không chắc chắn của mô hình; TTA bốn góc nhìn rồi lấy trung bình xác suất; gộp dự đoán trong không gian logit theo cách ít bị ảnh hưởng bởi một góc nhìn bất thường; và U-Net rộng hơn nhưng chỉ chạy suy luận một lần. Thí nghiệm dùng một tập con ISIC 2016 được chuẩn bị trên máy, gồm 140 cặp ảnh–mặt nạ cho huấn luyện, 40 cặp cho validation và 60 cặp cho test. Trong lần chạy thử trên CPU, chương trình chọn một nhóm cố định gồm 80 ảnh làm nguồn dữ liệu huấn luyện, 20 ảnh cho validation và 30 ảnh cho test; tất cả được thu nhỏ về 64 × 64. Mỗi cấu hình chạy với ba seed giống nhau để có thể so sánh công bằng và được huấn luyện trong hai epoch. Hai mức thí nghiệm lần lượt dùng 20 ảnh và 40 ảnh đã được gán nhãn, tương ứng 25% và 50% nhóm 80 ảnh ban đầu. Khi dùng 40 ảnh, U-Net cơ sở đạt Dice trung bình 0,4001; TTA kiểu robust-logit đạt 0,4043; còn mô hình rộng hơn đạt 0,3586. Khi dùng 20 ảnh, các kết quả lần lượt là 0,3883; 0,3922 và 0,3004. Các phiên bản có thêm loss vùng biên chỉ lệch dưới 0,0003 Dice so với mô hình cơ sở. Không phép so sánh nào cho thấy mức cải thiện đủ rõ về mặt thống kê. Vì vậy, kết quả hiện tại chưa cho thấy loss vùng biên, các cách TTA hoặc việc tăng độ rộng mô hình giúp phân đoạn tốt hơn trong cấu hình đã thử. Một nghiên cứu đầy đủ hơn cần kiểm tra xem phần loss được thêm vào có thật sự tác động đến quá trình học hay không, đồng thời huấn luyện lâu hơn, dùng nhiều dữ liệu hơn và lặp lại thí nghiệm độc lập.
+Nghiên cứu này kiểm tra hai hướng cải tiến cho U-Net gọn nhẹ khi có ít ảnh được đánh dấu từng pixel: thêm loss để mô hình chú ý đường biên và chạy một ảnh theo bốn hướng rồi gộp kết quả lúc kiểm thử. Sau khi loại bốn ảnh bị trùng giữa các tập, thí nghiệm có 716 ảnh làm nguồn huấn luyện, 180 ảnh để chọn mô hình và 379 ảnh test. Ba mức huấn luyện dùng 179 ảnh (25%), 358 ảnh (50%) và 716 ảnh (100%). Bảy cách làm được chạy ở kích thước 256 × 256 với năm seed giống nhau, tổng cộng 105 lượt đánh giá. U-Net cơ sở đạt Dice 0,8444 ± 0,0095; 0,8688 ± 0,0051; và 0,8907 ± 0,0041 ở ba mức dữ liệu. Cách gộp robust-logit tăng Dice 0,0057; 0,0039; và 0,0032. U-Net rộng hơn cho kết quả cao nhất: 0,8555; 0,8785; và 0,8971. Hai cách thêm loss vùng biên đều thấp hơn mô hình cơ sở một lượng rất nhỏ. Với năm seed, kiểm định Wilcoxon hai phía chưa thể cho p < 0,05; vì vậy nghiên cứu mô tả mức chênh lệch thay vì khẳng định phương pháp nào luôn tốt hơn. Kết quả cho thấy gộp nhiều dự đoán và tăng vừa phải độ rộng mô hình có ích hơn hai loss vùng biên đã thử. Đây là mức khớp với mặt nạ tham chiếu trên bộ dữ liệu này, không phải bằng chứng về khả năng chẩn đoán hay dùng trong bệnh viện.
 
-**Từ khóa:** xử lý ảnh y khoa, phân đoạn ảnh, tổn thương da, U-Net, học với ít dữ liệu được gán nhãn, loss vùng biên, tăng cường dữ liệu tại thời điểm kiểm thử.
+**Từ khóa:** xử lý ảnh y khoa; phân đoạn ảnh; tổn thương da; U-Net; ít ảnh được đánh dấu; loss vùng biên; TTA
 
 ## 1. Giới thiệu
 
-Phân đoạn tổn thương da là việc xác định chính xác vùng tổn thương trên ảnh soi da. Đây là một bài toán quan trọng trong xử lý ảnh y khoa, nhưng việc vẽ mặt nạ cho từng ảnh tốn nhiều thời gian và cần người có chuyên môn. Đường biên của tổn thương thường khó nhận ra do độ tương phản thấp, lông tóc che khuất, ánh sáng thay đổi, nhiễu từ thiết bị hoặc hình dạng không đều. Vì vậy, cần có những mô hình vẫn học tốt khi chỉ có một số lượng nhỏ ảnh đã được chuyên gia vẽ mặt nạ và không đòi hỏi quá nhiều tài nguyên tính toán.
+Phân đoạn tổn thương da là xác định pixel nào trong ảnh soi da thuộc vùng tổn thương. Đường viền có thể khó thấy vì độ tương phản thấp, lông tóc, ánh sáng không đều, nhiễu từ thiết bị và hình dạng phức tạp. Việc vẽ mặt nạ chi tiết cũng tốn thời gian của người có chuyên môn. Vì vậy, một câu hỏi thực tế là làm sao tận dụng tốt lượng ảnh đã được đánh dấu còn hạn chế.
 
-U-Net và các mô hình encoder–decoder tương tự thường được dùng làm mốc so sánh trong phân đoạn ảnh y khoa [siddique2021unet][wang2022medical]. Loss chú trọng vùng biên cố gắng làm cho mô hình quan tâm nhiều hơn đến đường viền tổn thương, vì loss tính trên toàn vùng có thể chưa phạt đủ mạnh các lỗi nhỏ nằm sát đường biên [jurdi2021highlevel]. Một cách khác là TTA: cùng một ảnh được lật hoặc xoay theo nhiều hướng, mô hình dự đoán từng phiên bản, sau đó các kết quả được đưa về cùng chiều và gộp lại. TTA có thể làm dự đoán ổn định hơn, nhưng hiệu quả còn tùy vào cách biến đổi và cách gộp kết quả [ashraf2022melanoma]. Mức khác nhau giữa các dự đoán cũng có thể dùng như một dấu hiệu cho thấy mô hình chưa chắc chắn. Tuy nhiên, dấu hiệu này không thể tự động được xem là một phép đo uncertainty đã được kiểm chứng [abdar2021review][mehrtash2020confidence].
+U-Net và các mạng encoder–decoder tương tự thường được dùng làm mốc so sánh [siddique2021unet; azad2022medical]. Có hai cách cải tiến tương đối rẻ. Cách thứ nhất thêm loss vùng biên để phạt rõ hơn khi mô hình vẽ sai đường viền [jurdi2021highlevel]. Cách thứ hai là TTA: lật hoặc xoay cùng một ảnh, dự đoán từng bản, đưa kết quả về cùng chiều rồi gộp lại [ashraf2022melanoma]. Mức khác nhau giữa các bản dự đoán cho biết mô hình nhạy với phép biến đổi đến đâu, nhưng không nên tự động gọi đó là độ không chắc chắn đã được kiểm chứng [abdar2021review; mehrtash2020confidence].
 
-Nghiên cứu tập trung vào một câu hỏi cụ thể: trong điều kiện máy tính và dữ liệu đều hạn chế, việc thêm loss cho vùng biên hoặc gộp dự đoán từ bốn góc nhìn có giúp mặt nạ dự đoán khớp với mặt nạ thật hơn U-Net gọn nhẹ hay không? Các cách này cũng được so sánh với một U-Net rộng hơn nhưng chỉ suy luận một lần. Kết quả chỉ phản ánh thí nghiệm trên dữ liệu ảnh; nghiên cứu không đưa ra kết luận về chẩn đoán, điều trị, độ an toàn hay khả năng dùng trong bệnh viện.
+Nghiên cứu trả lời ba câu hỏi: loss vùng biên có giúp U-Net gọn nhẹ không; gộp bốn dự đoán có giúp không; và hai hướng đó có tốt hơn một U-Net rộng hơn nhưng chỉ dự đoán một lần không.
 
-## 2. Phương pháp
+## 2. Dữ liệu và cách làm
 
-### 2.1. Dữ liệu và quy trình thực nghiệm
+### 2.1 Dữ liệu và kiểm tra trùng
 
-Thí nghiệm sử dụng các cặp ảnh–mặt nạ có nguồn gốc từ ISIC 2016. Chương trình chuẩn bị dữ liệu tạo ra 140 cặp cho huấn luyện, 40 cặp cho validation và 60 cặp cho test. Trong lần chạy thử, mã nguồn chọn 80 ảnh làm nguồn dữ liệu huấn luyện, 20 ảnh cho validation và 30 ảnh cho test. Ảnh và mặt nạ được đưa về kích thước 64 × 64 pixel. Từ nhóm 80 ảnh ban đầu, hai mức thí nghiệm lần lượt dùng 20 ảnh và 40 ảnh để huấn luyện, tương ứng với tỷ lệ 25% và 50%. Đây là một tập con nhỏ, không phải kết quả đánh giá trên toàn bộ bộ dữ liệu của cuộc thi.
+Chương trình tải các cặp ảnh–mặt nạ ISIC 2016 từ `MedOtter/ISIC2016`. Trong 900 ảnh nguồn dùng để phát triển mô hình, 180 ảnh được chọn cố định làm tập validation bằng thứ tự băm SHA-256 của mã ảnh; 720 ảnh còn lại ban đầu là nguồn huấn luyện. Tập test có 379 ảnh. Chương trình băm nội dung từng tệp và phát hiện bốn ảnh huấn luyện trùng hoàn toàn với ảnh ở tập khác. Bốn ảnh này bị loại, còn 716 ảnh huấn luyện, 180 ảnh validation và 379 ảnh test. Repo không chứa các tệp ảnh.
 
-Mỗi phương pháp được chạy với ba seed: 0, 1 và 2. Mô hình được huấn luyện trên CPU trong tối đa hai epoch bằng AdamW, batch size 8, cosine learning-rate schedule và early stopping. U-Net gọn nhẹ dùng số kênh 4, 8, 16 và 32 ở các tầng. Phiên bản rộng hơn được chọn bằng phần đo thời gian có sẵn trong mã thí nghiệm. Xác suất từ 0,5 trở lên được xem là vùng tổn thương để tạo mặt nạ nhị phân.
+Với mỗi seed, ảnh huấn luyện được chia nhóm theo tỷ lệ diện tích tổn thương. Ba mức 25%, 50% và 100% dùng 179, 358 và 716 ảnh. Tập nhỏ nằm trong tập lớn để so sánh công bằng. Trong cùng một seed và mức dữ liệu, mọi phương pháp dùng đúng cùng danh sách ảnh và cùng lịch tăng cường dữ liệu. Ảnh và mặt nạ được đưa về 256 × 256 pixel. Dữ liệu đã chuẩn bị không có mã bệnh nhân phù hợp nên chưa thể kiểm tra chắc rằng không có cùng một người ở nhiều tập. Đây là một hạn chế quan trọng [cassidy2021analysis; wen2021characteristics].
 
-### 2.2. Các cấu hình được so sánh
+### 2.2 Mô hình và huấn luyện
 
-Bảy cấu hình thực nghiệm gồm:
+U-Net gọn nhẹ có bốn mức kênh 16/32/64/128, dùng các khối tích chập tách theo chiều sâu, group normalization, SiLU, max pooling, phóng to bilinear và nối tắt giữa encoder với decoder. Mô hình có 62.716 tham số học được. U-Net rộng hơn dùng các mức 24/48/96/192 và có 134.572 tham số.
 
-1. **C-UNet:** U-Net gọn nhẹ, sử dụng entropy chéo nhị phân kết hợp soft Dice và suy luận một góc nhìn.
-2. **MP-TTA:** C-UNet kết hợp TTA bốn góc nhìn bằng cách lấy trung bình xác suất.
-3. **UDB:** U-Net gọn nhẹ với loss tăng trọng số cho vùng gần đường biên.
-4. **UB-TTA:** UDB kết hợp TTA bằng trung bình xác suất.
-5. **UGDB:** U-Net gọn nhẹ với loss vùng biên có trọng số thay đổi theo mức không chắc chắn của mô hình.
-6. **RL-TTA:** C-UNet kết hợp cơ chế đồng thuận bền vững trong không gian logit từ bốn góc nhìn.
-7. **W-UNet:** U-Net rộng hơn, suy luận một góc nhìn.
+Loss cơ sở là binary cross-entropy cộng soft Dice. Bản UDB thêm loss dựa trên khoảng cách có dấu tới mặt nạ thật; khoảng cách bị chặn ở 20 pixel, hệ số là 0,01 và tăng dần trong mười epoch đầu. Bản UGDB còn giảm trọng số ở những nơi bốn bản dự đoán sau khi căn chỉnh khác nhau nhiều. Đại lượng này được gọi là độ nhạy với phép biến đổi, không gọi là độ không chắc chắn về kiến thức của mô hình.
 
-Chỉ số chính là Dice trung bình trên từng ảnh. Dice càng cao thì vùng dự đoán càng trùng với mặt nạ thật. Thí nghiệm còn lưu IoU, foreground-balanced Brier score, lesion-centered Brier score, negative log-likelihood, expected calibration error (ECE), boundary-band Brier score, boundary F-score, calibration slope và intercept, HD95 cùng normalized surface Dice. Vì đây chỉ là lần chạy thử nhỏ với ba seed, kết quả được dùng để xem xu hướng và mức dao động, chưa đủ để khẳng định một phương pháp tốt hơn về mặt thống kê.
+Mô hình được huấn luyện bằng AdamW, learning rate 3×10⁻⁴, weight decay 10⁻⁴, batch 24, gradient clipping 1,0 và bfloat16 trên GPU. Mỗi lượt chạy tối đa 60 epoch. Chương trình kiểm tra validation sau mỗi hai epoch và dừng sớm nếu năm lần liên tiếp không tốt hơn. Ảnh được lật ngang, lật dọc, xoay theo bội số 90 độ và đổi nhẹ độ sáng/tương phản.
+
+### 2.3 Bảy cấu hình
+
+1. **C-UNet:** U-Net gọn nhẹ, dự đoán một lần.
+2. **MP-TTA:** C-UNet dự đoán bốn hướng rồi lấy trung bình xác suất.
+3. **UDB:** C-UNet có thêm loss khoảng cách tới đường biên.
+4. **UDB+TTA:** UDB kết hợp TTA lấy trung bình xác suất.
+5. **UGDB:** loss vùng biên được điều chỉnh bằng độ nhạy với phép biến đổi.
+6. **RL-TTA:** C-UNet dự đoán bốn hướng; tại mỗi pixel, loại bản lệch nhiều nhất rồi lấy trung bình ba logit còn lại.
+7. **W-UNet:** U-Net rộng hơn, dự đoán một lần.
+
+Chỉ số chính là Dice trung bình trên từng ảnh ở ngưỡng 0,5. Nghiên cứu còn đo IoU, boundary F-score, normalized surface Dice, HD95 và các chỉ số về xác suất. Cần xem nhiều chỉ số vì một con số không thể mô tả hết lỗi phân đoạn [muller2022guideline; maierhein2024metrics].
+
+Mỗi cấu hình chạy với năm seed. Bảng ghi trung bình và độ lệch chuẩn mẫu. Chênh lệch Dice được tính theo từng cặp seed, kiểm tra bằng Wilcoxon hai phía và bootstrap 20.000 lần. Với năm cặp số khác 0, p nhỏ nhất mà Wilcoxon hai phía có thể đạt là 0,0625. Vì vậy thí nghiệm phù hợp để ước lượng mức cải thiện hơn là đưa ra kết luận thống kê cuối cùng.
 
 ## 3. Kết quả
 
-### 3.1. Kết quả Dice
+Cả 105 lượt đánh giá đều thành công. Tổng thời gian là 9,73 giờ trên NVIDIA RTX 4050 Laptop GPU; không có lỗi số học và không chạm giới hạn thời gian.
 
-| Phương pháp | Huấn luyện bằng 20 ảnh (25%), Dice trung bình ± độ lệch chuẩn | Huấn luyện bằng 40 ảnh (50%), Dice trung bình ± độ lệch chuẩn |
-|---|---:|---:|
-| C-UNet | 0,3883 ± 0,0543 | 0,4001 ± 0,0490 |
-| MP-TTA | 0,3854 ± 0,0737 | 0,3974 ± 0,0658 |
-| UDB | 0,3883 ± 0,0543 | 0,4002 ± 0,0490 |
-| UB-TTA | 0,3854 ± 0,0737 | 0,3975 ± 0,0657 |
-| UGDB | 0,3884 ± 0,0542 | 0,4003 ± 0,0489 |
-| RL-TTA | **0,3922 ± 0,0639** | **0,4043 ± 0,0557** |
-| W-UNet | 0,3004 ± 0,0756 | 0,3586 ± 0,0507 |
+| Phương pháp | 25% (179 ảnh) | 50% (358 ảnh) | 100% (716 ảnh) |
+|---|---:|---:|---:|
+| C-UNet | 0,8444 ± 0,0095 | 0,8688 ± 0,0051 | 0,8907 ± 0,0041 |
+| MP-TTA | 0,8492 ± 0,0102 | 0,8723 ± 0,0056 | 0,8938 ± 0,0048 |
+| UDB | 0,8440 ± 0,0096 | 0,8686 ± 0,0053 | 0,8905 ± 0,0040 |
+| UDB+TTA | 0,8488 ± 0,0104 | 0,8721 ± 0,0059 | 0,8936 ± 0,0048 |
+| UGDB | 0,8437 ± 0,0097 | 0,8686 ± 0,0052 | 0,8905 ± 0,0042 |
+| RL-TTA | 0,8500 ± 0,0100 | 0,8726 ± 0,0057 | 0,8939 ± 0,0047 |
+| W-UNet | **0,8555 ± 0,0085** | **0,8785 ± 0,0056** | **0,8971 ± 0,0029** |
 
-TTA kiểu robust-logit đạt Dice trung bình cao nhất trong cả hai trường hợp, nhưng chỉ cao hơn C-UNet 0,0039 khi huấn luyện bằng 20 ảnh và 0,0042 khi huấn luyện bằng 40 ảnh. Các phép kiểm định theo từng cặp seed chưa cho thấy khác biệt có ý nghĩa thống kê; khoảng tin cậy đều đi qua 0. Trong khi đó, TTA lấy trung bình xác suất làm Dice giảm khoảng 0,0029 và 0,0027.
+![Dice theo lượng dữ liệu](../figures/dice_by_label_budget.png)
 
-Các mô hình có thêm loss vùng biên cho kết quả gần như giống mô hình cơ sở. So với C-UNet, Dice của UDB chỉ thay đổi khoảng +0,00002 ở mức 25% và +0,00011 ở mức 50%; UGDB thay đổi khoảng +0,00004 và +0,00016. Những con số này quá nhỏ so với mức dao động giữa các seed. Điều đó không có nghĩa mọi loại loss vùng biên đều vô ích; nó chỉ cho thấy cách cài đặt và thiết lập được chạy trong thí nghiệm này chưa làm thay đổi kết quả một cách đáng kể.
+RL-TTA cao hơn C-UNet 0,0057 Dice khi dùng 25% dữ liệu, 0,0039 khi dùng 50% và 0,0032 khi dùng toàn bộ dữ liệu. MP-TTA cũng tăng 0,0048; 0,0036; và 0,0031. Lợi ích nhỏ dần khi có nhiều ảnh huấn luyện hơn, cho thấy TTA hữu ích nhất lúc dự đoán còn kém ổn định.
 
-Trái với giả thuyết ban đầu về năng lực mô hình, W-UNet kém hơn C-UNet 0,0879 Dice ở mức 25% và 0,0415 ở mức 50%. Với chỉ hai epoch, việc tăng độ rộng có thể làm tăng khó khăn tối ưu hóa hoặc độ biến thiên mà không có đủ số lần cập nhật để tạo ra lợi ích về năng lực biểu diễn.
+W-UNet đứng đầu ở cả ba mức và hơn C-UNet 0,0111; 0,0097; và 0,0065 Dice. Ngược lại, UDB thấp hơn mô hình cơ sở khoảng 0,0002–0,0004; UGDB thấp hơn khoảng 0,0002–0,0007. UDB+TTA tốt hơn C-UNet, nhưng gần như toàn bộ phần tăng đó cũng xuất hiện khi áp dụng TTA cho C-UNet không có loss vùng biên.
 
-### 3.2. Diễn giải các chỉ số xác suất và đường biên
+![Chênh lệch Dice theo cặp seed](../figures/paired_dice_effects.png)
 
-Tệp kết quả có đầy đủ các chỉ số phụ cho từng seed và từng cấu hình. Chúng giúp kiểm tra lại thí nghiệm, nhưng số ảnh ít và thời gian huấn luyện ngắn nên chưa thể kết luận chắc chắn về độ tin cậy của xác suất hay chất lượng đường biên. Brier score phản ánh cả độ khớp của xác suất lẫn khả năng phân biệt hai lớp; ECE thay đổi theo cách chia bin; boundary F-score và HD95 có thể dao động mạnh khi dự đoán quá kém hoặc không có vùng dương tính. Vì vậy, không thể dựa vào một chỉ số riêng lẻ để nói rằng mô hình đã đủ đáng tin cậy cho y tế [muller2022guideline][maierhein2024metrics].
+Không so sánh nào có p < 0,05. Điều này chủ yếu do kiểm định hai phía với năm cặp có độ phân giải thấp. Khoảng bootstrap dương mô tả kết quả đã quan sát; nó chưa đủ để khẳng định hiệu quả sẽ giữ nguyên trên dữ liệu khác.
 
-## 4. Thảo luận
+Thứ tự các phương pháp khá giống nhau ở IoU và một số chỉ số bề mặt. Tuy vậy, boundary F-score và normalized surface Dice thấp hơn nhiều so với Dice vùng, nghĩa là mặt nạ có thể trùng khá tốt về diện tích nhưng đường viền vẫn chưa chính xác. Toàn bộ số liệu theo seed nằm trong `results/per_seed_metrics.csv`; bảng trung bình nằm trong `results/summary_metrics.csv`.
 
-Kết quả chính của lần chạy này là chưa có phương án nào cải thiện rõ ràng so với U-Net gọn nhẹ chỉ suy luận một lần. TTA kiểu robust-logit tốt hơn một chút, còn TTA lấy trung bình xác suất lại kém hơn một chút. Điều này cho thấy cách gộp các dự đoán có thể ảnh hưởng đến kết quả, nhưng ba seed là quá ít để biết chênh lệch đó có ổn định hay chỉ do ngẫu nhiên.
+![Các chỉ số ở mức 100% dữ liệu](../figures/full_label_metrics.png)
 
-Việc C-UNet, UDB và UGDB cho kết quả gần như giống nhau là điểm cần chú ý. Thêm một loss phức tạp không đồng nghĩa với việc loss đó đã thật sự ảnh hưởng đến quá trình học. Lần thử tiếp theo nên ghi lại giá trị loss vùng biên, độ lớn gradient của nó so với loss chính, mức thay đổi của trọng số uncertainty, sự khác nhau giữa các mặt nạ dự đoán và sự thay đổi trong tham số mô hình. Đồng thời, mô hình cần được huấn luyện lâu hơn và đánh giá trực tiếp bằng các chỉ số khoảng cách đường biên.
+Không nên lấy Brier score hoặc ECE của một tập test nội bộ để nói rằng mô hình đã đáng tin cậy trong bệnh viện. Brier score trộn cả khả năng phân biệt và độ đúng của xác suất; ECE thay đổi theo cách chia nhóm; cả hai có thể đổi khi nguồn ảnh hoặc nhóm người bệnh thay đổi [mehrtash2020confidence; karimi2022improving].
 
-Không nên từ kết quả này mà kết luận rằng mô hình rộng luôn kém trong phân đoạn ảnh y khoa. Tất cả mô hình chỉ được học hai epoch trên một tập ảnh nhỏ và đã bị giảm độ phân giải. Mạng rộng hơn có thể cần learning rate khác, cách chống overfitting khác hoặc nhiều bước cập nhật hơn. Kết quả ở đây chỉ đúng với lần chạy thử hiện tại và cho thấy rằng tăng số kênh chưa chắc đem lại lợi ích nếu thời gian huấn luyện quá ngắn.
+## 4. Bàn luận
+
+Điều giúp nhiều nhất là có thêm ảnh được vẽ mặt nạ. C-UNet tăng 0,0463 Dice khi đi từ 25% lên 100% dữ liệu. Trong các thay đổi về phương pháp, U-Net rộng hơn cho kết quả tốt nhất dù số tham số chỉ khoảng gấp đôi. TTA đem lại mức tăng nhỏ hơn nhưng rất đều giữa các seed và không cần huấn luyện lại; đổi lại, nó phải chạy mô hình khoảng bốn lần cho mỗi ảnh.
+
+RL-TTA luôn nhỉnh hơn MP-TTA, nhưng chỉ hơn 0,0008; 0,0003; và 0,0001 Dice. Chênh lệch nhỏ như vậy chưa đủ để nói robust-logit chắc chắn tốt hơn. Khi triển khai, cần cân nhắc thêm thời gian chạy, điện năng và độ ổn định.
+
+Hai loss vùng biên không đem lại lợi ích. Có thể soft Dice đã cung cấp đủ tín hiệu về hình dạng; hệ số 0,01 quá nhỏ; cách chuẩn hóa chưa phù hợp; hoặc mặt nạ sau khi đổi về 256 × 256 làm bài toán đường biên dễ hơn. Nghiên cứu tiếp theo nên đo độ lớn gradient của từng phần loss và chọn hệ số trên validation.
+
+Đối chứng W-UNet làm thay đổi kết luận kỹ thuật. Nếu chỉ so các bản của mô hình gọn nhẹ, TTA sẽ đứng đầu. Khi thêm mô hình rộng hơn, thay đổi đơn giản về số kênh lại cho kết quả cao hơn mà chỉ cần dự đoán một lần.
 
 ## 5. Hạn chế
 
-- Nghiên cứu sử dụng một tập con nhỏ của ISIC 2016, không phải đánh giá đầy đủ trên toàn bộ chuẩn chính thức.
-- Ảnh được giảm xuống 64 × 64, làm mất nhiều chi tiết đường biên nhỏ.
-- Thời gian huấn luyện tối đa chỉ hai epoch nên nguy cơ mô hình chưa học đủ là rất cao.
-- Chỉ có ba seed và một cách chia tập dữ liệu được đánh giá.
-- Các điều kiện 25% và 50% là tỷ lệ của tập phát triển 80 ảnh, không phải tỷ lệ của toàn bộ kho huấn luyện ISIC.
-- Chưa thử trên dữ liệu từ nguồn khác, chưa kiểm tra khi loại máy chụp hoặc điều kiện chụp thay đổi, chưa phân tích thông tin theo từng bệnh nhân và chưa có đánh giá của bác sĩ.
-- Nhiều chỉ số được xem xét cùng lúc, nhưng số lần chạy chưa đủ lớn và chưa có bước điều chỉnh thống kê cho việc kiểm tra nhiều giả thuyết.
-- Thời gian chạy trên CPU không phải phép đo độ trễ được chuẩn hóa cho triển khai thực tế.
+Nghiên cứu chỉ dùng một bộ dữ liệu và một cách chia validation cố định. Chưa kiểm tra được việc tách theo bệnh nhân. Ảnh bị đổi về 256 × 256 nên mất chi tiết nhỏ. Năm seed vẫn ít và các tập con có quan hệ lồng nhau. Hệ số loss vùng biên và tham số gate chưa được tìm kiếm rộng. Chưa có bộ dữ liệu ngoài, phân tích theo nhóm người bệnh, đánh giá của bác sĩ, kiểm tra khi nguồn ảnh thay đổi hay nghiên cứu tiến cứu. Kết quả chỉ đo độ khớp với mặt nạ tham chiếu; nó không đo khả năng phát hiện ung thư, đưa ra chẩn đoán, chọn điều trị hay mức an toàn thực tế.
 
 ## 6. Kết luận
 
-Trong lần chạy thử bằng CPU, U-Net gọn nhẹ đạt Dice trung bình 0,3883 khi được huấn luyện bằng 20 ảnh và 0,4001 khi được huấn luyện bằng 40 ảnh. TTA kiểu robust-logit làm Dice tăng khoảng 0,004, nhưng mức tăng này chưa đủ rõ để khẳng định bằng thống kê. Hai cách thêm loss vùng biên hầu như không làm kết quả thay đổi, còn mô hình rộng hơn lại kém hơn khi chỉ được huấn luyện hai epoch. Nghiên cứu tiếp theo nên dùng bộ dữ liệu đầy đủ ở độ phân giải cao hơn, huấn luyện lâu hơn, thử nhiều cách chọn ảnh huấn luyện, tăng số seed, theo dõi xem loss mới có thật sự tác động đến quá trình học hay không, đo đường biên trực tiếp và kiểm tra trên dữ liệu từ nguồn khác. Kết quả hiện tại chỉ mô tả khả năng phân đoạn trên tập dữ liệu đã chọn; chúng không chứng minh độ chính xác chẩn đoán hay giá trị sử dụng trong thực tế lâm sàng.
+Trên 105 lượt chạy với ISIC 2016, TTA bốn hướng giúp U-Net gọn nhẹ tăng khoảng 0,003–0,006 Dice. U-Net rộng hơn vừa phải đạt Dice cao nhất ở cả ba mức dữ liệu. Hai cách thêm loss vùng biên không cải thiện kết quả. Với cấu hình đã thử, tăng vừa phải số kênh và gộp nhiều dự đoán có ích hơn loss vùng biên; tuy nhiên, thêm dữ liệu được vẽ mặt nạ vẫn tạo mức tăng lớn nhất. Cần lặp lại trên dữ liệu độc lập và với nhiều seed hơn trước khi khái quát kết luận.
 
-## Thông tin để chạy lại thí nghiệm
+## Thông tin chạy lại
 
-Mã nguồn, kết quả của từng seed, chương trình chuẩn bị dữ liệu, tài liệu tham khảo, biểu đồ và báo cáo kiểm tra trích dẫn đều nằm trong thư mục kết quả. Cả 31 tài liệu tham khảo do pipeline thu thập đã được đối chiếu bằng DOI ở bước cuối. Số liệu gốc cần dùng để kiểm tra là tệp `code/results.json`. Bản tiếng Việt này được viết từ báo cáo tiếng Anh đã sửa theo số liệu thật, không dựa vào các con số sai trong bản thảo tự động ban đầu.
+Repo chứa đúng mã đã chạy, chương trình chuẩn bị dữ liệu, kết quả theo seed, bảng tổng hợp, script tạo biểu đồ và tài liệu tham khảo. Repo không chứa ảnh, môi trường Python, cache, file hệ thống hay mã AutoResearchClaw. Người dùng phải xem điều khoản nguồn dữ liệu trước khi tải hoặc chia sẻ ảnh.

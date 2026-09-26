@@ -1,0 +1,8 @@
+{
+  "successful_runs": 105,
+  "expected_runs": 105,
+  "elapsed_seconds": 35042.515999999996,
+  "device": "cuda",
+  "torch_version": "2.13.0+cu130",
+  "time_guard_triggered": false
+}

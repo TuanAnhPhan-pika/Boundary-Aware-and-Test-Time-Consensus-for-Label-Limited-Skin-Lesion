@@ -1,87 +1,91 @@
-# LENS: A CPU Pilot of Boundary-Aware and Test-Time Consensus Methods for Label-Limited Skin-Lesion Segmentation
+# Boundary Loss or Test-Time Consensus? A Five-Seed Study of Label-Limited ISIC 2016 Skin-Lesion Segmentation
 
 ## Abstract
 
-This exploratory study evaluates lightweight skin-lesion segmentation under restricted annotation budgets. We compare a compact U-Net trained with binary cross-entropy and soft Dice loss against uniform distance-boundary supervision, uncertainty-gated boundary supervision, four-view mean-probability test-time augmentation (TTA), four-view robust-logit consensus, and a wider single-pass U-Net. Experiments use a locally materialized subset of ISIC 2016 containing 140 training, 40 validation, and 60 test image-mask pairs; the executed CPU pilot further limits evaluation to a fixed 80-image development pool, 20 validation images, and 30 test images at 64 x 64 resolution. Each condition is run for three paired seeds and two epochs at 25% and 50% label budgets. At 50% labels, the compact baseline achieved mean Dice 0.4001, while robust-logit TTA achieved 0.4043 and the wider model achieved 0.3586. At 25% labels, the corresponding values were 0.3883, 0.3922, and 0.3004. Boundary-supervised variants differed from the baseline by less than 0.0003 Dice. No paired comparison provided statistically significant evidence of improvement. The findings therefore do not support the hypothesis that the tested boundary loss, TTA rules, or added width improve segmentation in this short CPU pilot. They instead identify implementation activity, training duration, sample size, and independent replication as priorities for a definitive study.
+This study tests whether signed-distance boundary supervision and four-view test-time aggregation improve a compact U-Net when pixel-level annotations are limited. We used ISIC 2016 image-mask pairs distributed by the MedOtter mirror. After removing four exact cross-split image duplicates, the experiment contained 716 development, 180 validation, and 379 test images. Nested, lesion-area-stratified training subsets used 179 (25%), 358 (50%), or 716 (100%) images. Seven conditions were evaluated at 256 × 256 with five paired random seeds: compact U-Net; mean-probability test-time augmentation (TTA); uniform boundary loss; boundary loss plus mean TTA; transformation-sensitivity-gated boundary loss; robust-logit consensus TTA; and a wider single-view U-Net. All 105 prespecified evaluations completed. At 25%, 50%, and 100% labels, the compact baseline obtained Dice 0.8444 ± 0.0095, 0.8688 ± 0.0051, and 0.8907 ± 0.0041 (mean ± sample SD). Robust-logit consensus improved these means by 0.0057, 0.0039, and 0.0032. The wider U-Net was best overall at 0.8555, 0.8785, and 0.8971. Both boundary-loss variants were slightly below baseline at every budget. With five paired seeds, two-sided Wilcoxon tests could not attain p < 0.05; positive paired bootstrap intervals are therefore descriptive rather than confirmatory. The results support modest gains from multi-view inference and additional capacity, but not from the tested boundary objectives. They quantify reference-mask agreement and do not establish diagnostic or clinical performance.
+
+**Keywords:** medical image segmentation; skin lesion; U-Net; limited annotations; boundary loss; test-time augmentation
 
 ## 1. Introduction
 
-Skin-lesion segmentation delineates lesion tissue in dermoscopic images. It is an important image-analysis task, but dense masks are costly to create and lesions can exhibit weak contrast, hair occlusion, illumination variation, artifacts, and irregular borders. These characteristics motivate methods that can learn from fewer masks while remaining computationally modest.
+Skin-lesion segmentation identifies lesion pixels in dermoscopic images. Reliable contours are challenging because of weak contrast, hair, illumination changes, artifacts, and irregular borders. Dense masks also require expert time, motivating methods that work with fewer annotated images. U-Net-style encoder-decoder models remain common baselines [siddique2021unet; azad2022medical].
 
-U-Net-style encoder-decoder models are a common baseline for medical-image segmentation [siddique2021unet][wang2022medical]. Boundary-aware losses attempt to concentrate supervision near lesion contours, where region losses may provide weak or spatially diffuse gradients [jurdi2021highlevel]. Test-time augmentation instead transforms the input, inverse-aligns multiple predictions, and combines them. This can reduce sensitivity to a particular view, although its benefit depends on the transformations and aggregation operator [ashraf2022melanoma]. Uncertainty-related quantities are also increasingly used in medical-image analysis, but transformation disagreement is not automatically a calibrated estimate of epistemic uncertainty [abdar2021review][mehrtash2020confidence].
+Two inexpensive strategies are attractive. A boundary term can add spatial information that region losses may underemphasize [jurdi2021highlevel]. Test-time augmentation predicts several geometry-preserving views, aligns the outputs, and aggregates them [ashraf2022melanoma]. View disagreement may indicate transformation sensitivity, although it is not automatically a validated estimate of epistemic uncertainty [abdar2021review; mehrtash2020confidence].
 
-This work asks a deliberately narrow question: under a fixed, resource-constrained pilot protocol, do boundary-weighted training or four-view consensus improve segmentation overlap relative to a compact U-Net, and how do they compare with a wider single-pass model? The study reports computational evidence only. It makes no claim about diagnosis, treatment, safety, or clinical deployment.
+We ask whether boundary supervision or four-view aggregation improves a compact U-Net and whether either is competitive with a wider single-view network. The experiment uses paired seeds, nested label subsets, held-out validation, and overlap, boundary, distance, and calibration metrics.
 
-## 2. Methods
+## 2. Materials and methods
 
-### 2.1 Data and executed protocol
+### 2.1 Data and leakage control
 
-The experiment uses image-mask pairs derived from ISIC 2016. The preparation script materialized 140 training, 40 validation, and 60 test pairs. For the executed pilot, the code selected a fixed development pool of 80 images, 20 validation images, and 30 test images. Images and masks were resized to 64 x 64 pixels. Restricted-label conditions used 25% and 50% of the development pool. The subset is small and is not an official challenge-scale evaluation.
+The preparation program materialized `MedOtter/ISIC2016` train and test pairs. From 900 source-training pairs, 180 validation cases were chosen deterministically by SHA-256 ranking of image identifiers; the other 720 initially formed the development pool. The source test split supplied 379 pairs. A byte-level image-hash audit retained test over validation over training and removed four training images duplicated across splits. Final counts were 716 development, 180 validation, and 379 test images. Images are not redistributed in this repository.
 
-Every method was evaluated with seeds 0, 1, and 2. Models were trained on CPU for at most two epochs with AdamW, batch size 8, cosine learning-rate scheduling, and early stopping. The compact U-Net used channel widths 4, 8, 16, and 32. Wider candidates were selected by the experiment's timing routine. A threshold of 0.5 converted probabilities to binary masks.
+For each seed, training cases were stratified by lesion-area fraction. The 25%, 50%, and 100% subsets contained 179, 358, and 716 images and were nested within that seed. Every method within a seed and budget used the same cases and augmentation seed. Images and masks were resized to 256 × 256. Patient-level separation could not be verified because suitable identifiers were unavailable; this is a limitation. Careful reporting is important because public skin-image collections can contain overlap and heterogeneous metadata [cassidy2021analysis; wen2021characteristics].
 
-### 2.2 Compared conditions
+### 2.2 Models and training
 
-The seven conditions were:
+The compact four-level U-Net uses widths 16/32/64/128, depthwise-separable blocks, group normalization, SiLU, max pooling, bilinear upsampling, skip connections, and one foreground logit (62,716 trainable parameters). The wider comparator uses widths 24/48/96/192 (134,572 parameters), selected by a pre-run latency rule.
 
-1. **C-UNet:** compact U-Net with binary cross-entropy plus soft Dice loss and single-view inference.
-2. **MP-TTA:** C-UNet with four-view mean-probability TTA.
-3. **UDB:** compact U-Net with uniform distance-boundary supervision.
-4. **UB-TTA:** UDB with mean-probability TTA.
-5. **UGDB:** compact U-Net with uncertainty-gated distance-boundary supervision.
-6. **RL-TTA:** C-UNet with robust-logit four-view consensus.
-7. **W-UNet:** a wider U-Net with single-view inference.
+The base objective is binary cross-entropy plus soft Dice. The uniform boundary model adds the mean product of foreground probability and signed distance to the reference mask, clipped at 20 pixels, with weight 0.01 and a ten-epoch warm-up. The gated model multiplies that term by `exp(-variance/0.01)`, where variance comes from four inverse-aligned predictions of a frozen compact reference. We call this transformation sensitivity, not calibrated uncertainty.
 
-The primary outcome was mean per-image Dice. The experiment also recorded IoU, foreground-balanced Brier score, lesion-centered Brier score, negative log-likelihood, expected calibration error, boundary-band Brier score, boundary F-score, calibration slope and intercept, HD95, and normalized surface Dice. Because this is a small pilot with three seeds, the analysis emphasizes effect direction and variability rather than confirmatory significance.
+Models used AdamW (learning rate 3×10⁻⁴, weight decay 10⁻⁴), cosine decay, gradient clipping at 1.0, batch size 24, bfloat16, and at most 60 epochs. Validation occurred every two epochs; early stopping used five validation events. Augmentation comprised horizontal/vertical flips, 90-degree rotations, and mild brightness/contrast jitter. Checkpoint and temperature choices used validation only.
+
+### 2.3 Inference and conditions
+
+Four-view inference used identity, horizontal flip, vertical flip, and 180-degree rotation. Mean TTA averages inverse-aligned probabilities. Robust consensus computes aligned logits, discards at every pixel the view with greatest local deviation from the median in a 5 × 5 window, averages the remaining three logits, clips to ±15, and applies sigmoid.
+
+Seven conditions were prespecified: compact U-Net (C-UNet); mean-probability TTA (MP-TTA); uniform distance-boundary training (UDB); UDB with mean TTA (UDB+TTA); sensitivity-gated boundary training (UGDB); robust-logit consensus (RL-TTA); and wider single-view U-Net (W-UNet).
+
+### 2.4 Outcomes and statistics
+
+The primary endpoint was mean per-image Dice at threshold 0.5. Secondary endpoints included IoU, boundary F-score, normalized surface Dice (NSD), HD95, Brier scores, negative log-likelihood, expected calibration error, calibration slope, and intercept. Multiple metrics are necessary because no score captures every relevant segmentation error [muller2022guideline; maierhein2024metrics].
+
+We report means and sample SDs over five paired seeds. Each method was compared with C-UNet using a two-sided exact Wilcoxon signed-rank test and a 20,000-resample paired bootstrap interval for the mean Dice difference. With five nonzero pairs, the smallest possible two-sided exact Wilcoxon p-value is 0.0625; this is an estimation-oriented study, not a powered confirmatory test.
 
 ## 3. Results
 
-### 3.1 Dice results
+All 105 method–budget–seed evaluations completed successfully in 9.73 hours on an NVIDIA RTX 4050 Laptop GPU. No time guard or numerical-divergence flag was triggered.
 
-| Method | 25% labels, Dice mean +/- population SD | 50% labels, Dice mean +/- population SD |
-|---|---:|---:|
-| C-UNet | 0.3883 +/- 0.0543 | 0.4001 +/- 0.0490 |
-| MP-TTA | 0.3854 +/- 0.0737 | 0.3974 +/- 0.0658 |
-| UDB | 0.3883 +/- 0.0543 | 0.4002 +/- 0.0490 |
-| UB-TTA | 0.3854 +/- 0.0737 | 0.3975 +/- 0.0657 |
-| UGDB | 0.3884 +/- 0.0542 | 0.4003 +/- 0.0489 |
-| RL-TTA | **0.3922 +/- 0.0639** | **0.4043 +/- 0.0557** |
-| W-UNet | 0.3004 +/- 0.0756 | 0.3586 +/- 0.0507 |
+| Method | 25% (179), Dice | 50% (358), Dice | 100% (716), Dice |
+|---|---:|---:|---:|
+| C-UNet | 0.8444 ± 0.0095 | 0.8688 ± 0.0051 | 0.8907 ± 0.0041 |
+| MP-TTA | 0.8492 ± 0.0102 | 0.8723 ± 0.0056 | 0.8938 ± 0.0048 |
+| UDB | 0.8440 ± 0.0096 | 0.8686 ± 0.0053 | 0.8905 ± 0.0040 |
+| UDB+TTA | 0.8488 ± 0.0104 | 0.8721 ± 0.0059 | 0.8936 ± 0.0048 |
+| UGDB | 0.8437 ± 0.0097 | 0.8686 ± 0.0052 | 0.8905 ± 0.0042 |
+| RL-TTA | 0.8500 ± 0.0100 | 0.8726 ± 0.0057 | 0.8939 ± 0.0047 |
+| W-UNet | **0.8555 ± 0.0085** | **0.8785 ± 0.0056** | **0.8971 ± 0.0029** |
 
-Robust-logit consensus produced the highest mean Dice in both label regimes, but its absolute improvement over C-UNet was only 0.0039 at 25% and 0.0042 at 50%. The paired tests were not statistically significant, and the estimated confidence intervals included zero. Mean-probability TTA reduced mean Dice by approximately 0.0029 and 0.0027 at the two budgets.
+![Dice across label budgets](../figures/dice_by_label_budget.png)
 
-The boundary-trained models were almost identical to their corresponding references. Relative to C-UNet, UDB changed mean Dice by roughly +0.00002 at 25% and +0.00011 at 50%; UGDB changed it by roughly +0.00004 and +0.00016. These differences are negligible compared with variation across seeds. This result does not establish that boundary losses are generally ineffective. It shows that the boundary intervention in this executed configuration did not materially alter the measured endpoint.
+RL-TTA exceeded C-UNet by 0.0057, 0.0039, and 0.0032 Dice as the budget increased. MP-TTA improved Dice by 0.0048, 0.0036, and 0.0031. W-UNet had the highest mean at every budget, exceeding baseline by 0.0111, 0.0097, and 0.0065. UDB differed from baseline by −0.0004, −0.0002, and −0.0002; UGDB by −0.0007, −0.0002, and −0.0002. UDB+TTA improved over baseline, but almost all of that gain was reproduced by mean TTA without boundary training.
 
-Contrary to the intended capacity hypothesis, W-UNet underperformed C-UNet by 0.0879 Dice at 25% and 0.0415 at 50%. Under two-epoch training, additional width may have increased optimization difficulty or variance without enough updates to realize a capacity benefit.
+![Paired effects](../figures/paired_dice_effects.png)
 
-### 3.2 Interpretation of probability and boundary metrics
+No comparison met p < 0.05. The positive bootstrap intervals for TTA describe the observed paired effect but are not independent confirmatory evidence. Complete per-seed results are in `results/per_seed_metrics.csv`, with summaries in `results/summary_metrics.csv`.
 
-The full machine-readable artifact contains the secondary metrics for every seed and condition. These values are useful for auditing, but the small sample and short training schedule preclude strong calibration or contour claims. Brier score mixes calibration and discrimination; ECE is binning-dependent; boundary F-score and HD95 can be unstable for poor or empty predictions. Accordingly, the study does not infer clinical reliability from any single probability or boundary metric [muller2022guideline][maierhein2024metrics].
+![Full-label metrics](../figures/full_label_metrics.png)
+
+Boundary F-score and NSD were numerically low relative to region Dice, showing that strong overlap does not guarantee precise contours. Calibration metrics were not used for clinical reliability claims: Brier score combines discrimination and calibration, ECE depends on binning, and internal performance does not establish behavior after acquisition or population shift [mehrtash2020confidence; karimi2022improving].
 
 ## 4. Discussion
 
-The main empirical observation is negative: none of the evaluated modifications produced convincing evidence of improvement over the compact single-view baseline. Robust-logit TTA showed a small favorable direction, whereas mean-probability TTA showed a small unfavorable direction. This suggests that the aggregation domain may matter, but three seeds are insufficient to distinguish a stable effect from noise.
+More labeled images produced the largest improvement: baseline Dice rose by 0.0463 from 25% to 100% labels. Among method changes, the wider network gave the best single-view result despite only about twice the parameters. Four-view inference delivered smaller, consistent gains without retraining, at the cost of roughly four forward passes.
 
-The near-identity of C-UNet, UDB, and UGDB is especially important. A nominally more sophisticated objective is not evidence that the objective exerted a meaningful training signal. A definitive follow-up should log the boundary-loss magnitude, its gradient norm relative to the region loss, gate variance, prediction divergence, and parameter divergence. It should also use longer training and direct surface metrics.
+Robust-logit consensus was consistently better than mean-probability averaging, but only by 0.0008, 0.0003, and 0.0001 Dice. This is too small for a broad superiority claim. Deployment choices should therefore consider latency and failure behavior, not Dice alone.
 
-The wider model's underperformance should not be generalized to model capacity in medical segmentation. All models received only two epochs on a small, downsampled subset. Wider networks may require different learning rates, regularization, schedules, or more updates. The result is therefore specific to the executed pilot and is best treated as a warning against assuming that extra width automatically helps under a fixed short schedule.
+The proposed boundary objectives did not help. Possible explanations include redundancy with soft Dice, an undersized coefficient, imperfect scale matching, or boundary simplification after resizing. Future work should measure gradient contributions and tune the coefficient on validation data.
+
+The capacity control changes the engineering conclusion. Without W-UNet, TTA appears best; with it, a modest increase in width produces a larger gain with single-view inference. This does not invalidate TTA, but shows why a simple capacity control is necessary.
 
 ## 5. Limitations
 
-- The study uses a small ISIC 2016 subset rather than a full official benchmark evaluation.
-- Images were reduced to 64 x 64, which removes fine boundary detail.
-- Training lasted at most two epochs, making underfitting likely.
-- Only three seeds and one fixed subset construction were evaluated.
-- The 25% and 50% conditions represent fractions of an 80-image development pool, not fractions of the complete ISIC training archive.
-- No external dataset, acquisition-shift analysis, patient-level metadata analysis, or clinician study was performed.
-- Multiple exploratory outcomes were recorded without a powered, multiplicity-controlled confirmatory analysis.
-- CPU timing in this run is not a standardized latency or deployment benchmark.
+This study uses one dataset and one fixed validation split. Patient independence could not be checked. Resizing to 256 × 256 removes fine details. Five seeds share nested subsets rather than independent datasets. Boundary and gate hyperparameters were minimally explored. Exact Wilcoxon testing has inadequate resolution at n=5 for two-sided significance below 0.05. There is no external validation, subgroup analysis, clinician review, acquisition-shift test, or prospective assessment. Test results measure reference-mask agreement, not diagnosis, prognosis, treatment benefit, safety, or clinical readiness.
 
 ## 6. Conclusion
 
-In this constrained CPU pilot, a compact U-Net achieved mean Dice 0.3883 and 0.4001 at the 25% and 50% label budgets. Robust-logit TTA increased those means by approximately 0.004, but the evidence did not establish a statistically reliable benefit. Uniform and uncertainty-gated boundary objectives produced negligible changes, while a wider model performed worse under the two-epoch schedule. A larger follow-up should use the full-resolution benchmark, longer training, repeated subset draws, more seeds, logged intervention diagnostics, direct boundary metrics, and external validation. The present findings characterize only segmentation behavior on the selected data and do not establish diagnostic accuracy or clinical utility.
+Across 105 completed ISIC 2016 evaluations, four-view TTA improved a compact U-Net by about 0.003–0.006 Dice, and a modestly wider single-view U-Net achieved the highest mean Dice at every label budget. The tested uniform and sensitivity-gated boundary losses did not improve performance. Additional labels had the largest effect. Independent replication and external datasets are required before generalizing these findings.
 
-## Reproducibility statement
+## Reproducibility and data statement
 
-The code, per-seed results, preparation script, bibliography, charts, and citation-verification report are included with the deliverables. All 31 bibliography entries referenced by the generated research package were verified by DOI lookup in the pipeline's final citation stage. The authoritative numerical source is `code/results.json`; this corrected report supersedes unsupported numerical claims in the automatically generated draft.
-
+The repository contains the exact executed code, preparation script, per-seed results, derived tables, analysis script, figures, and bibliography. It excludes image data, virtual environments, caches, system files, and AutoResearchClaw. Upstream dataset terms must be reviewed before downloading or redistributing data.

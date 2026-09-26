@@ -1,4 +1,4 @@
-"""ISIC 2016 subset discovery, integrity checks, and deterministic loading."""
+"""ISIC 2018 Task 1 discovery, integrity checks, and deterministic loading."""
 
 import hashlib
 import math
@@ -50,10 +50,10 @@ def _candidate_files(directory):
 
 def discover_isic_manifest(root):
     """
-    Discover the prepared ISIC 2016 subset without downloading data.
+    Discover official ISIC 2018 Task 1 folders without downloading data.
 
-    Test masks are required; the code never creates a random replacement for
-    a missing prepared partition.
+    Test ground-truth masks are required; the code never creates a random
+    image-level replacement for a missing official partition.
     """
     root = Path(root)
     records = []
@@ -63,12 +63,12 @@ def discover_isic_manifest(root):
         mask_directory = root / mask_name
         if not image_directory.is_dir():
             raise FileNotFoundError(
-                f"missing prepared {split} image directory: "
+                f"missing official {split} image directory: "
                 f"{image_directory}"
             )
         if not mask_directory.is_dir():
             raise FileNotFoundError(
-                f"missing prepared {split} mask directory: "
+                f"missing official {split} mask directory: "
                 f"{mask_directory}"
             )
 
@@ -113,7 +113,7 @@ def _load_array(path):
 
     if Image is None:
         raise ImportError(
-            "Pillow is required to decode the JPEG/PNG files. "
+            "Pillow is required to decode official JPEG/PNG files. "
             "Alternatively provide losslessly decoded .npy arrays."
         )
     with Image.open(path) as image:
@@ -234,7 +234,7 @@ def validate_manifest(manifest, size, check_hashes=True):
     observed_splits = set(manifest["split"].unique())
     if observed_splits != allowed_splits:
         raise ValueError(
-            f"expected prepared splits {allowed_splits}, "
+            f"expected official splits {allowed_splits}, "
             f"observed {observed_splits}"
         )
 
@@ -281,7 +281,7 @@ def validate_manifest(manifest, size, check_hashes=True):
             patient_rows.groupby("patient_id")["split"].nunique()
         )
         if (patient_split_counts > 1).any():
-            raise ValueError("patient overlap across prepared splits")
+            raise ValueError("patient overlap across official splits")
 
 def stratified_sample(frame, count, seed):
     if count >= len(frame):
@@ -399,6 +399,7 @@ class ISICSegmentationDataset(Dataset):
 
         self.images = []
         self.masks = []
+        self.distances = []
         self.image_ids = []
 
         for row in self.frame.itertuples(index=False):
@@ -413,6 +414,17 @@ class ISICSegmentationDataset(Dataset):
             self.masks.append(
                 torch.from_numpy(mask).unsqueeze(0)
             )
+            binary = mask >= 0.5
+            outside = distance_transform_edt(~binary)
+            inside = distance_transform_edt(binary)
+            signed_distance = np.clip(
+                outside - inside,
+                -self.distance_clip_pixels,
+                self.distance_clip_pixels,
+            ).astype(np.float32)
+            self.distances.append(
+                torch.from_numpy(signed_distance).unsqueeze(0)
+            )
             self.image_ids.append(row.image_id)
 
     def set_epoch(self, epoch):
@@ -421,7 +433,7 @@ class ISICSegmentationDataset(Dataset):
     def __len__(self):
         return len(self.images)
 
-    def _augment(self, image, mask, index):
+    def _augment(self, image, mask, distance, index):
         seed = (
             self.augmentation_seed * 1_000_003
             + self.epoch * 10_007
@@ -432,48 +444,19 @@ class ISICSegmentationDataset(Dataset):
         if rng.random() < 0.5:
             image = torch.flip(image, dims=(-1,))
             mask = torch.flip(mask, dims=(-1,))
+            distance = torch.flip(distance, dims=(-1,))
         if rng.random() < 0.5:
             image = torch.flip(image, dims=(-2,))
             mask = torch.flip(mask, dims=(-2,))
+            distance = torch.flip(distance, dims=(-2,))
 
-        angle = np.deg2rad(
-            rng.uniform(-self.affine_degrees, self.affine_degrees)
-        )
-        shift_x = rng.uniform(
-            -self.affine_translation, self.affine_translation
-        )
-        shift_y = rng.uniform(
-            -self.affine_translation, self.affine_translation
-        )
-        cosine = float(np.cos(angle))
-        sine = float(np.sin(angle))
-        theta = torch.tensor(
-            [
-                [cosine, -sine, shift_x],
-                [sine, cosine, shift_y],
-            ],
-            dtype=image.dtype,
-        ).unsqueeze(0)
-
-        grid = F.affine_grid(
-            theta,
-            size=(1, 3, self.image_size, self.image_size),
-            align_corners=False,
-        )
-        image = F.grid_sample(
-            image.unsqueeze(0),
-            grid,
-            mode="bilinear",
-            padding_mode="reflection",
-            align_corners=False,
-        ).squeeze(0)
-        mask = F.grid_sample(
-            mask.unsqueeze(0),
-            grid,
-            mode="nearest",
-            padding_mode="zeros",
-            align_corners=False,
-        ).squeeze(0)
+        quarter_turns = int(rng.integers(0, 4))
+        if quarter_turns:
+            image = torch.rot90(image, quarter_turns, dims=(-2, -1))
+            mask = torch.rot90(mask, quarter_turns, dims=(-2, -1))
+            distance = torch.rot90(
+                distance, quarter_turns, dims=(-2, -1)
+            )
 
         brightness = 1.0 + rng.uniform(
             -self.color_jitter, self.color_jitter
@@ -485,26 +468,21 @@ class ISICSegmentationDataset(Dataset):
         image = (
             (image - channel_mean) * contrast + channel_mean
         ) * brightness
-        return image.clamp(0.0, 1.0), (mask >= 0.5).float()
+        return (
+            image.clamp(0.0, 1.0),
+            (mask >= 0.5).float(),
+            distance,
+        )
 
     def __getitem__(self, index):
         image = self.images[index].clone()
         mask = self.masks[index].clone()
+        distance = self.distances[index].clone()
 
         if self.augment:
-            image, mask = self._augment(image, mask, index)
-
-        binary = mask.squeeze(0).numpy() >= 0.5
-        outside = distance_transform_edt(~binary)
-        inside = distance_transform_edt(binary)
-        signed_distance = np.clip(
-            outside - inside,
-            -self.distance_clip_pixels,
-            self.distance_clip_pixels,
-        ).astype(np.float32)
-        distance = torch.from_numpy(
-            signed_distance
-        ).unsqueeze(0)
+            image, mask, distance = self._augment(
+                image, mask, distance, index
+            )
 
         image = (image - self.mean) / self.std
         return image, mask, distance, self.image_ids[index]

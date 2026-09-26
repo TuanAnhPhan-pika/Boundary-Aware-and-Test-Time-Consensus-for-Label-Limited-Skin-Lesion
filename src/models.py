@@ -140,7 +140,7 @@ class CompactUNetBCESoftDice(nn.Module):
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(
             device_type=device.type,
-            dtype=torch.float16,
+            dtype=torch.bfloat16,
             enabled=device.type == "cuda",
         ):
             logits = self.forward(images)
@@ -206,7 +206,7 @@ class UniformDistanceBoundaryUNet(CompactUNetBCESoftDice):
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(
             device_type=device.type,
-            dtype=torch.float16,
+            dtype=torch.bfloat16,
             enabled=device.type == "cuda",
         ):
             logits = self.forward(images)
@@ -471,7 +471,7 @@ class UncertaintyGatedDistanceBoundaryUNet(
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(
             device_type=device.type,
-            dtype=torch.float16,
+            dtype=torch.bfloat16,
             enabled=device.type == "cuda",
         ):
             logits = self.forward(images)
