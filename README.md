@@ -31,11 +31,14 @@ Values are mean per-image Dice across five paired seeds on 379 test images. They
 - `paper/paper_english.md` — full English paper.
 - `paper/submission_manuscript.docx` — anonymous journal-style manuscript with formatted tables, figures, references, and declarations.
 - `paper/paper_vietnamese.md` — Vietnamese paper in accessible technical language.
+- `paper/thuyet_minh_nghien_cuu_tieng_viet.md` — Vietnamese research explanation covering motivation, protocol, results, contributions, limitations, and next steps.
+- `paper/thuyet_minh_nghien_cuu_tieng_viet.docx` — formatted Word version of the Vietnamese research explanation.
 - `paper/references.bib` — bibliography with DOI links.
 - `src/` — exact experiment implementation.
 - `scripts/prepare_isic2016_full.py` — deterministic data preparation.
 - `scripts/generate_analysis.py` — regenerates tables and figures.
 - `scripts/build_manuscript_docx.py` — rebuilds the formatted Word manuscript from the English Markdown source.
+- `scripts/build_vietnamese_explanation_docx.py` — rebuilds the formatted Vietnamese research explanation.
 - `results/experiment_results.json` — authoritative full output.
 - `results/per_seed_metrics.csv` — tidy per-seed metrics.
 - `results/summary_metrics.csv` — aggregate metrics.
