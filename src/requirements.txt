@@ -4,6 +4,7 @@ Pillow
 scipy
 scikit-learn
 matplotlib
+python-docx
 torch
 torchvision
 datasets
